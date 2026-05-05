@@ -10,7 +10,7 @@ Press `Command + \`` to show the windows for the frontmost app, keep pressing it
 - Swift toolchain / Xcode command line tools
 - Accessibility permission for Glance
 
-Glance uses macOS Accessibility APIs to inspect and focus windows. On first launch, macOS should prompt for permission. If it does not, enable Glance manually in System Settings > Privacy & Security > Accessibility.
+Glance uses macOS Accessibility APIs to inspect and focus windows. When you first use the shortcut, macOS should prompt for permission. If it does not, enable Glance manually in System Settings > Privacy & Security > Accessibility.
 
 ## Download
 
@@ -25,6 +25,20 @@ Unzip it, then move `Glance.app` to `~/Applications` or `/Applications`.
 Automated builds are ad hoc signed with a stable bundle requirement, not notarized. macOS may require opening the app from Finder with Control-click > Open, or approving it in System Settings > Privacy & Security.
 
 Pull requests still upload temporary build artifacts to the [Build Glance workflow](https://github.com/brooklynDev/Glance/actions/workflows/build-app.yml), but the release page is the easiest place to get the current app.
+
+## Accessibility Troubleshooting
+
+If Glance keeps asking for Accessibility access even though it is already enabled, macOS is likely holding a stale permission entry from an older unsigned build.
+
+Try either of these:
+
+```sh
+tccutil reset Accessibility com.brooklyndev.Glance
+```
+
+Then launch Glance again and approve it when prompted.
+
+Or remove Glance from System Settings > Privacy & Security > Accessibility, add the copy in `/Applications` again, and turn it on.
 
 ## Build
 

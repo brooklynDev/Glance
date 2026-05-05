@@ -50,11 +50,19 @@ final class AccessibilityPermissionManager {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: prompt] as CFDictionary
         return AXIsProcessTrustedWithOptions(options)
     }
+
+    static func openSettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") else {
+            return
+        }
+
+        NSWorkspace.shared.open(url)
+    }
 }
 
 final class WindowSwitcherService {
     func fetchWindowsForFrontmostApp() throws -> (app: NSRunningApplication, windows: [WindowInfo]) {
-        guard AccessibilityPermissionManager.ensureTrusted(prompt: true) else {
+        guard AccessibilityPermissionManager.ensureTrusted(prompt: false) else {
             throw WindowSwitcherError.accessibilityDenied
         }
 
@@ -66,7 +74,7 @@ final class WindowSwitcherService {
     }
 
     func fetchWindows(for app: NSRunningApplication) throws -> (app: NSRunningApplication, windows: [WindowInfo]) {
-        guard AccessibilityPermissionManager.ensureTrusted(prompt: true) else {
+        guard AccessibilityPermissionManager.ensureTrusted(prompt: false) else {
             throw WindowSwitcherError.accessibilityDenied
         }
 
@@ -733,7 +741,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             presentErrorAlert(error)
         }
 
-        _ = AccessibilityPermissionManager.ensureTrusted(prompt: true)
+        _ = AccessibilityPermissionManager.ensureTrusted(prompt: false)
     }
 
     private func handleHotKey() {
@@ -790,12 +798,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func presentErrorAlert(_ error: Error) {
+        if case WindowSwitcherError.accessibilityDenied = error {
+            presentAccessibilityPermissionAlert(requestSystemPrompt: true)
+            return
+        }
+
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = "Glance"
         alert.informativeText = error.localizedDescription
         alert.addButton(withTitle: "OK")
         alert.runModal()
+    }
+
+    private func presentAccessibilityPermissionAlert(requestSystemPrompt: Bool) {
+        if requestSystemPrompt {
+            _ = AccessibilityPermissionManager.ensureTrusted(prompt: true)
+        }
+
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = "Glance Needs Accessibility Access"
+        alert.informativeText = """
+        Enable Glance in System Settings > Privacy & Security > Accessibility.
+
+        If Glance is already enabled but this message keeps appearing, remove Glance from that list, add the copy in /Applications again, and turn it on. macOS can keep a stale permission entry after replacing an unsigned development build.
+        """
+        alert.addButton(withTitle: "Open Settings")
+        alert.addButton(withTitle: "Later")
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            AccessibilityPermissionManager.openSettings()
+        }
     }
 }
 
