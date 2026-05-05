@@ -9,6 +9,9 @@ name: Build Glance
       - master
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build macOS app
@@ -25,6 +28,23 @@ jobs:
 
       - name: Build app bundle
         run: make clean zip validate
+
+      - name: Publish latest release
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git tag --force latest "$GITHUB_SHA"
+          git push --force origin latest
+
+          gh release delete latest --yes --cleanup-tag || true
+          git tag --force latest "$GITHUB_SHA"
+          git push --force origin latest
+
+          gh release create latest dist/Glance.zip \
+            --title "Latest Glance Build" \
+            --notes "Automated ad hoc signed build from commit $GITHUB_SHA." \
+            --latest
 
       - name: Upload app artifact
         uses: actions/upload-artifact@v4
