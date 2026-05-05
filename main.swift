@@ -5,7 +5,7 @@ import CoreGraphics
 
 private let axWindowNumberAttribute = "AXWindowNumber"
 
-struct WindowIdentity: Equatable {
+struct WindowIdentity: Equatable, Hashable {
     let windowNumber: Int?
     let fallbackTitle: String
 }
@@ -299,6 +299,9 @@ final class WindowPanelController: NSWindowController, NSTableViewDataSource, NS
         guard tableView.selectedRow >= 0, tableView.selectedRow < windows.count else { return nil }
         return windows[tableView.selectedRow]
     }
+    var orderedWindowIdentities: [WindowIdentity] {
+        windows.map(\.identity)
+    }
 
     init() {
         let panel = NSPanel(
@@ -349,6 +352,15 @@ final class WindowPanelController: NSWindowController, NSTableViewDataSource, NS
     func window(atShortcutIndex shortcutIndex: Int) -> WindowInfo? {
         guard shortcutIndex >= 0, shortcutIndex < min(windows.count, 10) else { return nil }
         return windows[shortcutIndex]
+    }
+
+    func advanceSelection() {
+        guard !windows.isEmpty else { return }
+
+        let currentIndex = selectedRowIndex ?? -1
+        let nextIndex = (currentIndex + 1) % windows.count
+        tableView.selectRowIndexes(IndexSet(integer: nextIndex), byExtendingSelection: false)
+        tableView.scrollRowToVisible(nextIndex)
     }
 
     private var selectedRowIndex: Int? {
@@ -753,7 +765,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let panelController = WindowPanelController()
     private var statusItemController: StatusItemController?
 
-    private var lastPresentedAppPID: pid_t?
+    private var lastCycleState: CycleState?
+
+    private struct CycleState {
+        let appPID: pid_t
+        let orderedIdentities: [WindowIdentity]
+        let focusedIdentity: WindowIdentity
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -761,10 +779,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         panelController.onSelectWindow = { [weak self] window, app in
             self?.focus(window: window, in: app)
-        }
-
-        panelController.onDismiss = { [weak self] in
-            self?.lastPresentedAppPID = nil
         }
 
         hotKeyController.onHotKeyPressed = { [weak self] in
@@ -794,17 +808,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func handleHotKey() {
         do {
-            if panelController.window?.isVisible == true, let displayedApp = panelController.displayedApp {
-                let result = try service.fetchWindows(for: displayedApp)
-                lastPresentedAppPID = result.app.processIdentifier
-                panelController.present(app: result.app, windows: result.windows, cycleSelection: true)
+            if panelController.window?.isVisible == true {
+                panelController.advanceSelection()
                 return
             }
 
             let result = try service.fetchWindowsForFrontmostApp()
-            let shouldCycle = panelController.window?.isVisible == true && lastPresentedAppPID == result.app.processIdentifier
-            lastPresentedAppPID = result.app.processIdentifier
-            panelController.present(app: result.app, windows: result.windows, cycleSelection: shouldCycle)
+            let windows = windowsContinuingLastCycleIfPossible(result.windows, for: result.app)
+            panelController.present(app: result.app, windows: windows, cycleSelection: false)
         } catch {
             panelController.dismissPanel()
             presentErrorAlert(error)
@@ -826,11 +837,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func focus(window: WindowInfo, in app: NSRunningApplication) {
         do {
             try service.focusWindow(window, for: app)
+            rememberCycleFocus(window, in: app)
             panelController.dismissPanel()
         } catch {
             panelController.dismissPanel()
             presentErrorAlert(error)
         }
+    }
+
+    private func windowsContinuingLastCycleIfPossible(_ windows: [WindowInfo], for app: NSRunningApplication) -> [WindowInfo] {
+        guard
+            let lastCycleState,
+            lastCycleState.appPID == app.processIdentifier,
+            windows.contains(where: { $0.isFocused && $0.identity == lastCycleState.focusedIdentity })
+        else {
+            return windows
+        }
+
+        let windowsByIdentity = Dictionary(grouping: windows, by: \.identity)
+        var usedIdentities = Set<WindowIdentity>()
+        var reorderedWindows: [WindowInfo] = []
+
+        for identity in lastCycleState.orderedIdentities {
+            guard
+                usedIdentities.insert(identity).inserted,
+                let matchingWindow = windowsByIdentity[identity]?.first
+            else {
+                continue
+            }
+
+            reorderedWindows.append(matchingWindow)
+        }
+
+        for window in windows where !usedIdentities.contains(window.identity) {
+            reorderedWindows.append(window)
+        }
+
+        guard
+            reorderedWindows.count == windows.count,
+            let focusedIndex = reorderedWindows.firstIndex(where: { $0.identity == lastCycleState.focusedIdentity })
+        else {
+            return windows
+        }
+
+        return Array(reorderedWindows[(focusedIndex + 1)...]) + Array(reorderedWindows[...focusedIndex])
+    }
+
+    private func rememberCycleFocus(_ window: WindowInfo, in app: NSRunningApplication) {
+        lastCycleState = CycleState(
+            appPID: app.processIdentifier,
+            orderedIdentities: panelController.orderedWindowIdentities,
+            focusedIdentity: window.identity
+        )
     }
 
     private func commitShortcutSelection(shortcutIndex: Int) {
