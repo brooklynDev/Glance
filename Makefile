@@ -1,6 +1,7 @@
 APP_NAME = Glance
 BUNDLE_ID = com.brooklyndev.Glance
 SWIFT_FILE = main.swift
+SWIFT_FILES = $(SWIFT_FILE) $(wildcard Sources/*.swift)
 TOOLS_DIR = Tools
 RESOURCES_DIR = Resources
 BUILD_DIR = build
@@ -24,9 +25,9 @@ CODESIGN_REQUIREMENTS_FLAG = $(if $(SIGN_REQUIREMENTS),--requirements '$(SIGN_RE
 
 build: $(BUILD_DIR)/$(APP_NAME)
 
-$(BUILD_DIR)/$(APP_NAME): $(SWIFT_FILE)
+$(BUILD_DIR)/$(APP_NAME): $(SWIFT_FILES)
 	mkdir -p $(BUILD_DIR)
-	swiftc $(SWIFT_FILE) -o $(BUILD_DIR)/$(APP_NAME) -framework AppKit -framework ApplicationServices -framework Carbon
+	swiftc $(SWIFT_FILES) -o $(BUILD_DIR)/$(APP_NAME) -framework AppKit -framework ApplicationServices -framework Carbon
 
 app: $(APP_STAMP)
 
@@ -34,9 +35,9 @@ $(APP_STAMP): $(MACOS_DIR)/$(APP_NAME) $(CONTENTS_DIR)/Info.plist $(ICON_FILE)
 	codesign --force --options runtime --sign "$(SIGN_IDENTITY)" $(CODESIGN_REQUIREMENTS_FLAG) $(APP_BUNDLE)
 	touch $(APP_STAMP)
 
-$(MACOS_DIR)/$(APP_NAME): $(SWIFT_FILE)
+$(MACOS_DIR)/$(APP_NAME): $(SWIFT_FILES)
 	mkdir -p $(MACOS_DIR)
-	swiftc $(SWIFT_FILE) -o $(MACOS_DIR)/$(APP_NAME) -framework AppKit -framework ApplicationServices -framework Carbon
+	swiftc $(SWIFT_FILES) -o $(MACOS_DIR)/$(APP_NAME) -framework AppKit -framework ApplicationServices -framework Carbon
 
 $(CONTENTS_DIR)/Info.plist: $(INFO_PLIST)
 	mkdir -p $(CONTENTS_DIR)
