@@ -792,7 +792,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func presentErrorAlert(_ error: Error) {
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "Window Switcher"
+        alert.messageText = "Glance"
         alert.informativeText = error.localizedDescription
         alert.addButton(withTitle: "OK")
         alert.runModal()

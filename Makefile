@@ -1,4 +1,4 @@
-APP_NAME = WindowSwitcher
+APP_NAME = Glance
 SWIFT_FILE = main.swift
 
 .PHONY: build run clean
