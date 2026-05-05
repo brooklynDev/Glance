@@ -18,7 +18,15 @@ Glance uses macOS Accessibility APIs to inspect and focus windows. On first laun
 make build
 ```
 
-This creates a local `Glance` executable.
+This creates a local `build/Glance` executable.
+
+## Build the App
+
+```sh
+make app
+```
+
+This creates and ad hoc signs `build/Glance.app`.
 
 ## Run
 
@@ -26,12 +34,48 @@ This creates a local `Glance` executable.
 make run
 ```
 
+## Install
+
+```sh
+make install
+```
+
+By default, this copies `Glance.app` to `~/Applications` and opens it. To install somewhere else:
+
+```sh
+make install INSTALL_DIR=/Applications
+```
+
+## Package
+
+```sh
+make zip
+```
+
+This creates `dist/Glance.zip`.
+
+## Release Signing and Notarization
+
+Local builds are ad hoc signed by default. For a Developer ID signed build, pass a signing identity:
+
+```sh
+make clean app SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+```
+
+To notarize, first store credentials with `xcrun notarytool store-credentials`, then run:
+
+```sh
+make notarize \
+  SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
+  NOTARY_PROFILE="your-notarytool-profile"
+```
+
+The notarization target submits `dist/Glance.zip`, staples the ticket to `build/Glance.app`, and rebuilds the zip.
+
+Gatekeeper assessment with `make assess` is expected to reject ad hoc local builds. Use it after building with a Developer ID identity and notarizing.
+
 ## Clean
 
 ```sh
 make clean
 ```
-
-## Status
-
-This is currently a compact AppKit prototype built as a command-line executable. The next step is turning it into a proper `.app` bundle with an icon, signing/notarization path, and a more polished install flow.

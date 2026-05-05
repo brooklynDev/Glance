@@ -1,6 +1,8 @@
 .DS_Store
 /.build/
 /.swiftpm/
+/build/
+/dist/
 /DerivedData/
 /Glance
 /WindowSwitcher
