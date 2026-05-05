@@ -1,4 +1,5 @@
 APP_NAME = Glance
+BUNDLE_ID = com.brooklyndev.Glance
 SWIFT_FILE = main.swift
 TOOLS_DIR = Tools
 RESOURCES_DIR = Resources
@@ -14,8 +15,10 @@ ICON_PNG = $(BUILD_DIR)/$(APP_NAME)-Icon.png
 ICONSET = $(BUILD_DIR)/$(APP_NAME).iconset
 ICON_FILE = $(APP_RESOURCES_DIR)/$(APP_NAME).icns
 SIGN_IDENTITY ?= -
+SIGN_REQUIREMENTS ?= =designated => identifier "$(BUNDLE_ID)"
 NOTARY_PROFILE ?=
 INSTALL_DIR ?= $(HOME)/Applications
+CODESIGN_REQUIREMENTS_FLAG = $(if $(SIGN_REQUIREMENTS),--requirements '$(SIGN_REQUIREMENTS)',)
 
 .PHONY: build app run sign install uninstall zip notarize validate assess clean
 
@@ -28,7 +31,7 @@ $(BUILD_DIR)/$(APP_NAME): $(SWIFT_FILE)
 app: $(APP_STAMP)
 
 $(APP_STAMP): $(MACOS_DIR)/$(APP_NAME) $(CONTENTS_DIR)/Info.plist $(ICON_FILE)
-	codesign --force --options runtime --sign "$(SIGN_IDENTITY)" $(APP_BUNDLE)
+	codesign --force --options runtime --sign "$(SIGN_IDENTITY)" $(CODESIGN_REQUIREMENTS_FLAG) $(APP_BUNDLE)
 	touch $(APP_STAMP)
 
 $(MACOS_DIR)/$(APP_NAME): $(SWIFT_FILE)
@@ -62,7 +65,7 @@ run: app
 	open $(APP_BUNDLE)
 
 sign: app
-	codesign --force --deep --options runtime --sign "$(SIGN_IDENTITY)" $(APP_BUNDLE)
+	codesign --force --deep --options runtime --sign "$(SIGN_IDENTITY)" $(CODESIGN_REQUIREMENTS_FLAG) $(APP_BUNDLE)
 	touch $(APP_STAMP)
 
 install: app

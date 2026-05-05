@@ -21,7 +21,7 @@ GitHub Actions builds `Glance.app` on every push and pull request.
 3. Download the `Glance-macOS` artifact.
 4. Unzip it, then move `Glance.app` to `~/Applications` or `/Applications`.
 
-These workflow builds are ad hoc signed, not notarized. macOS may require opening the app from Finder with Control-click > Open, or approving it in System Settings > Privacy & Security.
+These workflow builds are ad hoc signed with a stable bundle requirement, not notarized. macOS may require opening the app from Finder with Control-click > Open, or approving it in System Settings > Privacy & Security.
 
 ## Build
 
@@ -38,6 +38,8 @@ make app
 ```
 
 This creates and ad hoc signs `build/Glance.app`.
+
+Development builds use a stable designated requirement based on `com.brooklyndev.Glance`, so Accessibility approval should survive rebuilds. If you approved an older ad hoc build, remove and re-add Glance in System Settings > Privacy & Security > Accessibility once.
 
 ## Run
 
@@ -67,10 +69,18 @@ This creates `dist/Glance.zip`.
 
 ## Release Signing and Notarization
 
-Local builds are ad hoc signed by default. For a Developer ID signed build, pass a signing identity:
+Local builds are ad hoc signed by default with a stable bundle requirement. For a Developer ID signed build, pass a signing identity:
 
 ```sh
 make clean app SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+```
+
+To let codesign generate the Developer ID requirement instead, clear the local requirement:
+
+```sh
+make clean app \
+  SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
+  SIGN_REQUIREMENTS=
 ```
 
 To notarize, first store credentials with `xcrun notarytool store-credentials`, then run:
