@@ -5,16 +5,27 @@ import CoreGraphics
 
 private let axWindowNumberAttribute = "AXWindowNumber"
 
+struct WindowIdentity: Equatable {
+    let windowNumber: Int?
+    let fallbackTitle: String
+}
+
 struct WindowInfo: Equatable {
     let element: AXUIElement
     let title: String
     let isFocused: Bool
+    let isMinimized: Bool
     let windowNumber: Int?
+
+    var identity: WindowIdentity {
+        WindowIdentity(windowNumber: windowNumber, fallbackTitle: title)
+    }
 }
 
 enum WindowSwitcherError: LocalizedError {
     case accessibilityDenied
     case noFrontmostApplication
+    case applicationUnavailable(String)
     case noWindows
     case axFailure(String)
 
@@ -24,6 +35,8 @@ enum WindowSwitcherError: LocalizedError {
             return "Accessibility permission is required to inspect and focus windows."
         case .noFrontmostApplication:
             return "No frontmost application could be determined."
+        case .applicationUnavailable(let appName):
+            return "\(appName) is no longer running."
         case .noWindows:
             return "No titled windows were found for the frontmost application."
         case .axFailure(let message):
@@ -57,6 +70,10 @@ final class WindowSwitcherService {
             throw WindowSwitcherError.accessibilityDenied
         }
 
+        guard !app.isTerminated else {
+            throw WindowSwitcherError.applicationUnavailable(app.localizedName ?? "The selected application")
+        }
+
         let appElement = AXUIElementCreateApplication(app.processIdentifier)
         let focusedWindow = copyElementAttribute(kAXFocusedWindowAttribute, from: appElement)
         var windowsValue: CFTypeRef?
@@ -81,6 +98,10 @@ final class WindowSwitcherService {
     func focusWindow(_ window: WindowInfo, for app: NSRunningApplication) throws {
         guard AccessibilityPermissionManager.ensureTrusted(prompt: false) else {
             throw WindowSwitcherError.accessibilityDenied
+        }
+
+        if window.isMinimized {
+            _ = AXUIElementSetAttributeValue(window.element, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
         }
 
         _ = app.activate(options: [])
@@ -116,8 +137,9 @@ final class WindowSwitcherService {
         }
 
         let isFocused = focusedWindow.map { CFEqual($0, element) } ?? (copyBoolAttribute(kAXFocusedAttribute, from: element) ?? false)
+        let isMinimized = copyBoolAttribute(kAXMinimizedAttribute, from: element) ?? false
         let windowNumber = copyIntAttribute(axWindowNumberAttribute, from: element)
-        return WindowInfo(element: element, title: title, isFocused: isFocused, windowNumber: windowNumber)
+        return WindowInfo(element: element, title: title, isFocused: isFocused, isMinimized: isMinimized, windowNumber: windowNumber)
     }
 
     private func copyStringAttribute(_ key: String, from element: AXUIElement) -> String? {
@@ -183,7 +205,10 @@ final class WindowSwitcherService {
             return windowNumber.intValue
         }
 
-        let orderMap = Dictionary(uniqueKeysWithValues: orderedWindowNumbers.enumerated().map { ($0.element, $0.offset) })
+        var orderMap: [Int: Int] = [:]
+        for (offset, windowNumber) in orderedWindowNumbers.enumerated() where orderMap[windowNumber] == nil {
+            orderMap[windowNumber] = offset
+        }
 
         return windows.sorted { lhs, rhs in
             let lhsRank = lhs.windowNumber.flatMap { orderMap[$0] } ?? Int.max
@@ -292,10 +317,10 @@ final class WindowPanelController: NSWindowController, NSTableViewDataSource, NS
     }
 
     func present(app: NSRunningApplication, windows: [WindowInfo], cycleSelection: Bool) {
-        let previousSelectionTitle = selectedWindow?.title
+        let previousSelectionIdentity = selectedWindow?.identity
         self.currentApp = app
         self.windows = windows
-        reloadSelection(cycleSelection: cycleSelection, previousSelectionTitle: previousSelectionTitle)
+        reloadSelection(cycleSelection: cycleSelection, previousSelectionIdentity: previousSelectionIdentity)
         statusLabel.stringValue = app.localizedName ?? "Unknown App"
         appIconView.image = app.icon
 
@@ -311,20 +336,6 @@ final class WindowPanelController: NSWindowController, NSTableViewDataSource, NS
     func dismissPanel() {
         window?.orderOut(nil)
         onDismiss?()
-    }
-
-    func advanceSelection() {
-        guard !windows.isEmpty else { return }
-
-        let nextIndex: Int
-        if tableView.selectedRow >= 0 {
-            nextIndex = (tableView.selectedRow + 1) % windows.count
-        } else {
-            nextIndex = 0
-        }
-
-        tableView.selectRowIndexes(IndexSet(integer: nextIndex), byExtendingSelection: false)
-        tableView.scrollRowToVisible(nextIndex)
     }
 
     func window(atShortcutIndex shortcutIndex: Int) -> WindowInfo? {
@@ -504,7 +515,7 @@ final class WindowPanelController: NSWindowController, NSTableViewDataSource, NS
         return cell
     }
 
-    private func reloadSelection(cycleSelection: Bool, previousSelectionTitle: String?) {
+    private func reloadSelection(cycleSelection: Bool, previousSelectionIdentity: WindowIdentity?) {
         tableView.reloadData()
 
         guard !windows.isEmpty else { return }
@@ -513,8 +524,8 @@ final class WindowPanelController: NSWindowController, NSTableViewDataSource, NS
 
         if cycleSelection,
            window?.isVisible == true,
-           let previousSelectionTitle,
-           let previousIndex = windows.firstIndex(where: { $0.title == previousSelectionTitle }) {
+           let previousSelectionIdentity,
+           let previousIndex = windows.firstIndex(where: { $0.identity == previousSelectionIdentity }) {
             nextIndex = (previousIndex + 1) % windows.count
         } else {
             nextIndex = 0
@@ -761,6 +772,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try service.focusWindow(window, for: app)
             panelController.dismissPanel()
         } catch {
+            panelController.dismissPanel()
             presentErrorAlert(error)
         }
     }
