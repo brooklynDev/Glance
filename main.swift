@@ -325,10 +325,10 @@ final class WindowPanelController: NSWindowController, NSTableViewDataSource, NS
     }
 
     func present(app: NSRunningApplication, windows: [WindowInfo], cycleSelection: Bool) {
-        let previousSelectionIdentity = selectedWindow?.identity
+        let previousSelectionIndex = selectedRowIndex
         self.currentApp = app
         self.windows = windows
-        reloadSelection(cycleSelection: cycleSelection, previousSelectionIdentity: previousSelectionIdentity)
+        reloadSelection(cycleSelection: cycleSelection, previousSelectionIndex: previousSelectionIndex)
         statusLabel.stringValue = app.localizedName ?? "Unknown App"
         appIconView.image = app.icon
 
@@ -349,6 +349,11 @@ final class WindowPanelController: NSWindowController, NSTableViewDataSource, NS
     func window(atShortcutIndex shortcutIndex: Int) -> WindowInfo? {
         guard shortcutIndex >= 0, shortcutIndex < min(windows.count, 10) else { return nil }
         return windows[shortcutIndex]
+    }
+
+    private var selectedRowIndex: Int? {
+        guard tableView.selectedRow >= 0, tableView.selectedRow < windows.count else { return nil }
+        return tableView.selectedRow
     }
 
     func numberOfRows(in tableView: NSTableView) -> Int {
@@ -523,7 +528,7 @@ final class WindowPanelController: NSWindowController, NSTableViewDataSource, NS
         return cell
     }
 
-    private func reloadSelection(cycleSelection: Bool, previousSelectionIdentity: WindowIdentity?) {
+    private func reloadSelection(cycleSelection: Bool, previousSelectionIndex: Int?) {
         tableView.reloadData()
 
         guard !windows.isEmpty else { return }
@@ -532,8 +537,7 @@ final class WindowPanelController: NSWindowController, NSTableViewDataSource, NS
 
         if cycleSelection,
            window?.isVisible == true,
-           let previousSelectionIdentity,
-           let previousIndex = windows.firstIndex(where: { $0.identity == previousSelectionIdentity }) {
+           let previousIndex = previousSelectionIndex {
             nextIndex = (previousIndex + 1) % windows.count
         } else {
             nextIndex = 0
@@ -701,15 +705,59 @@ final class HotKeyController {
     }
 }
 
+final class StatusItemController: NSObject {
+    private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+
+    override init() {
+        super.init()
+        setupStatusItem()
+    }
+
+    private func setupStatusItem() {
+        if let button = statusItem.button {
+            button.image = makeStatusImage()
+            button.image?.isTemplate = true
+            button.toolTip = "Glance"
+        }
+
+        let menu = NSMenu()
+        menu.addItem(NSMenuItem(title: "Glance", action: nil, keyEquivalent: ""))
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(NSMenuItem(title: "Open Accessibility Settings", action: #selector(openAccessibilitySettings), keyEquivalent: ","))
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(NSMenuItem(title: "Quit Glance", action: #selector(quit), keyEquivalent: "q"))
+        menu.items.forEach { $0.target = self }
+        statusItem.menu = menu
+    }
+
+    private func makeStatusImage() -> NSImage? {
+        if let image = NSImage(systemSymbolName: "rectangle.stack", accessibilityDescription: "Glance") {
+            return image
+        }
+
+        return NSImage(systemSymbolName: "macwindow.on.rectangle", accessibilityDescription: "Glance")
+    }
+
+    @objc private func openAccessibilitySettings() {
+        AccessibilityPermissionManager.openSettings()
+    }
+
+    @objc private func quit() {
+        NSApp.terminate(nil)
+    }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let service = WindowSwitcherService()
     private let hotKeyController = HotKeyController()
     private let panelController = WindowPanelController()
+    private var statusItemController: StatusItemController?
 
     private var lastPresentedAppPID: pid_t?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        statusItemController = StatusItemController()
 
         panelController.onSelectWindow = { [weak self] window, app in
             self?.focus(window: window, in: app)

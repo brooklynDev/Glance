@@ -4,6 +4,8 @@ Glance is a small macOS utility that adds a visual window picker to the standard
 
 Press `Command + \`` to show the windows for the frontmost app, keep pressing it to cycle, then release Command to focus the selected window. While the picker is open, `Command + 1` through `Command + 0` jump directly to the first ten windows.
 
+Glance runs as a menu bar app. Use the menu bar icon to open Accessibility settings or quit the app.
+
 ## Requirements
 
 - macOS
