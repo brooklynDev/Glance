@@ -12,6 +12,17 @@ Press `Command + \`` to show the windows for the frontmost app, keep pressing it
 
 Glance uses macOS Accessibility APIs to inspect and focus windows. On first launch, macOS should prompt for permission. If it does not, enable Glance manually in System Settings > Privacy & Security > Accessibility.
 
+## Download a Build
+
+GitHub Actions builds `Glance.app` on every push and pull request.
+
+1. Open the [Build Glance workflow](https://github.com/brooklynDev/Glance/actions/workflows/build-app.yml).
+2. Select the latest successful run.
+3. Download the `Glance-macOS` artifact.
+4. Unzip it, then move `Glance.app` to `~/Applications` or `/Applications`.
+
+These workflow builds are ad hoc signed, not notarized. macOS may require opening the app from Finder with Control-click > Open, or approving it in System Settings > Privacy & Security.
+
 ## Build
 
 ```sh

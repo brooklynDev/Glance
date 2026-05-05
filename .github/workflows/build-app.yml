@@ -1,0 +1,35 @@
+name: Build Glance
+
+"on":
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build macOS app
+    runs-on: macos-15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          swift --version
+
+      - name: Build app bundle
+        run: make clean zip validate
+
+      - name: Upload app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Glance-macOS
+          path: dist/Glance.zip
+          if-no-files-found: error
+          retention-days: 14
