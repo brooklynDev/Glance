@@ -1,0 +1,8 @@
+.DS_Store
+/.build/
+/.swiftpm/
+/DerivedData/
+/WindowSwitcher
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcuserstate
